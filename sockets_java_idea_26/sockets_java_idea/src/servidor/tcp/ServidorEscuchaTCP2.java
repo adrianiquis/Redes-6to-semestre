@@ -5,17 +5,20 @@ import datos.Mensaje;
 
 import java.net.*;
 import java.io.*;
+import java.util.function.Consumer;
 
-//Thread es un progrma en hilo, puede ejecutarse sin necesidad de otros 
+//Thread es un progrma en hilo, puede ejecutarse sin necesidad de otros
 public class ServidorEscuchaTCP2 extends Thread {
     protected ServerSocket socket; //Socket servidor
     protected final int PUERTO_SERVER;
     private volatile boolean ejecutando = true;
+    private final Consumer<File> onArchivoRecibido;
     // Directorio donde el servidor guardará los archivos recibidos
     private final String CARPETA_DESCARGAS = "descargas_servidor/";
 
-    public ServidorEscuchaTCP2(int puertoS) throws Exception {
+    public ServidorEscuchaTCP2(int puertoS, Consumer<File> onArchivoRecibido) throws Exception {
         PUERTO_SERVER = puertoS;
+        this.onArchivoRecibido = onArchivoRecibido;
         // Primitiva de LISTEN, crea socket con Ip (implìcita activa) y puerto
         socket = new ServerSocket(PUERTO_SERVER);
 
@@ -42,7 +45,7 @@ public class ServidorEscuchaTCP2 extends Thread {
                     // lanzamos un nuevo hilo por cada cliente conectado. 
                     // Así el servidor puede atender a múltiples clientes a la vez.
                     // Invoca a la nueva clase externa y le pasa el socket y la ruta
-                    ManejadorCliente manejador = new ManejadorCliente(socket_cli, CARPETA_DESCARGAS);
+                    ManejadorCliente manejador = new ManejadorCliente(socket_cli, CARPETA_DESCARGAS, onArchivoRecibido);
                     new Thread(manejador).start();
 
                 }catch(SocketException e){

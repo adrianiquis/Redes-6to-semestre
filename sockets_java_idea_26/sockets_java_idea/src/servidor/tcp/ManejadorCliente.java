@@ -3,15 +3,17 @@ package servidor.tcp;
 import datos.EntradaSalida;
 import java.net.*;
 import java.io.*;
+import java.util.function.Consumer;
 
 public class ManejadorCliente implements Runnable {
     private Socket socket_cli;
     private String carpetaDescargas;
+    private Consumer<File> onArchivoRecibido;
 
-    // El constructor recibe el socket del cliente y dónde guardar las cosas
-    public ManejadorCliente(Socket socket_cli, String carpetaDescargas) {
+    public ManejadorCliente(Socket socket_cli, String carpetaDescargas, Consumer<File> onArchivoRecibido) {
         this.socket_cli = socket_cli;
         this.carpetaDescargas = carpetaDescargas;
+        this.onArchivoRecibido = onArchivoRecibido;
     }
 
     @Override
@@ -55,6 +57,7 @@ public class ManejadorCliente implements Runnable {
                     }
 
                     EntradaSalida.mostrarMensaje("Archivo guardado exitosamente en: " + archivoDestino.getAbsolutePath() + "\n");
+                    if (onArchivoRecibido != null) onArchivoRecibido.accept(archivoDestino);
                     EntradaSalida.mostrarMensaje("Esperando nuevo archivo del cliente...\n");
 
                 } catch (EOFException e) {

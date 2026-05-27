@@ -55,7 +55,7 @@ public class ClienteEnviaTCP2 extends Thread {
 
             long tamañoTotal = archivo.length();
             
-            // 1. Mandamos metadatos básicos (nombre y tamaño) al servidor
+            //Mandamos metadatos básicos (nombre y tamaño) al servidor
             dos.writeUTF(archivo.getName());
             dos.writeLong(tamañoTotal);
 
@@ -63,10 +63,10 @@ public class ClienteEnviaTCP2 extends Thread {
             int bytesLeidos;
             long bytesEnviadosSoFar = 0;
 
-            // --- INICIA EL CRONÓMETRO ---
+            //INICIA EL CRONÓMETRO 
             long startTime = System.currentTimeMillis();
 
-            // 2. Bucle de envío de archivo en fragmentos
+            // Bucle de envío de archivo en fragmentos
             while ((bytesLeidos = fis.read(buffer)) != -1) {
                 dos.write(buffer, 0, bytesLeidos);
                 dos.flush();
@@ -78,14 +78,14 @@ public class ClienteEnviaTCP2 extends Thread {
                 // Evitar división por cero en los primeros milisegundos
                 if (transcurridoMs > 0 && label != null) {
                     
-                    // CÁLCULO 1: Tiempo Transcurrido (en segundos)
+                    // Tiempo Transcurrido (en segundos)
                     double transcurridoSeg = transcurridoMs / 1000.0;
                     
-                    // CÁLCULO 2: Tasa de Transferencia (bps)
+                    // Tasa de Transferencia (bps)
                     // (Bytes * 8 = bits) / segundos
                     double bps = (bytesEnviadosSoFar * 8.0) / transcurridoSeg;
                     
-                    // CÁLCULO 3: Tiempo Restante
+                    // Tiempo Restante
                     double bytesPorSegundo = bytesEnviadosSoFar / transcurridoSeg;
                     long bytesQueFaltan = tamañoTotal - bytesEnviadosSoFar;
                     double restanteSeg = (bytesPorSegundo > 0) ? (bytesQueFaltan / bytesPorSegundo) : 0;
@@ -95,7 +95,7 @@ public class ClienteEnviaTCP2 extends Thread {
 
                     // Construimos el texto con formato
                     String textoMetricas = String.format(
-                        " %d%% | 🚄 BPS: %.0f bps | ⏱ Transcurrido: %.1fs | ⏳ Restante: %.1fs",
+                        " %d%% |  BPS: %.0f bps |  Transcurrido: %.1fs |  Restante: %.1fs",
                         porcentaje, bps, transcurridoSeg, restanteSeg
                     );
 
@@ -104,10 +104,10 @@ public class ClienteEnviaTCP2 extends Thread {
                 }
             }
 
-            // --- TERMINA EL CRONÓMETRO ---
+            // TERMINA EL CRONÓMETRO
             long endTime = System.currentTimeMillis();
             
-            // CÁLCULO 4: Latencia / Tiempo Total de Transmisión
+            // Latencia / Tiempo Total de Transmisión
             double latenciaTotal = (endTime - startTime) / 1000.0;
             
             if (label != null) {

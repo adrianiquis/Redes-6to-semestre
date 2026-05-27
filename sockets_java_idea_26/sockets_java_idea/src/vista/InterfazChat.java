@@ -2,6 +2,7 @@ package vista;
 
 import cliente.tcp.ClienteTCP;
 import cliente.udp.ClienteEnviaUDP2;
+import servidor.tcp.ServidorTCP;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -28,6 +29,7 @@ public class InterfazChat extends JFrame {
     // Motores de Red (El mismo motor)
     private ClienteTCP clienteTcp;
     private ClienteEnviaUDP2 clienteUdp;
+    private ServidorTCP servidorTcp;
 
     // Puertos P2P (teléfono de vasos)
     private final int PUERTO_TCP_AMIGO = 6001; 
@@ -186,15 +188,21 @@ public class InterfazChat extends JFrame {
 
             if (clienteUdp != null) clienteUdp.detener();
 
-            // Motor TCP
+            // Servidor TCP (para recibir archivos del amigo) — se inicia solo una vez
+            if (servidorTcp == null) {
+                servidorTcp = new ServidorTCP(PUERTO_TCP_AMIGO);
+                servidorTcp.inicia(this::recibirArchivoPorTCP);
+            }
+
+            // Motor TCP (para enviar archivos al amigo)
             clienteTcp = new ClienteTCP(ipTarget, PUERTO_TCP_AMIGO);
             clienteTcp.inicia();
-            
-            // Motor UDP
+
+            // Motor UDP (para enviar mensajes)
             clienteUdp = new ClienteEnviaUDP2(new DatagramSocket(), ipTarget, PUERTO_UDP_AMIGO);
-            clienteUdp.start(); 
-            
-            //El oído P2P (Receptor UDP integrado)
+            clienteUdp.start();
+
+            // El oído P2P (Receptor UDP integrado)
             iniciarEscuchaRespuestasUDP();
 
             // Actualizar UI pastel
@@ -247,20 +255,34 @@ public class InterfazChat extends JFrame {
     }
 
     // Hilo Receptor P2P integrado (El oído de la ventana)
-    private void iniciarEscuchaRespuestasUDP() {
+    private void iniciarEscuchaRespuestasUDP() throws Exception {
+        // Creamos el socket ANTES del hilo para que el error sea visible en la UI
+        DatagramSocket socketEscucha = new DatagramSocket(PUERTO_MI_ESCUCHA_UDP);
         new Thread(() -> {
-            try (DatagramSocket socketEscucha = new DatagramSocket(PUERTO_MI_ESCUCHA_UDP)) {
-                byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[1024];
+            try {
                 while (true) {
                     DatagramPacket paquete = new DatagramPacket(buffer, buffer.length);
                     socketEscucha.receive(paquete);
                     String mensajeRecibido = new String(paquete.getData(), 0, paquete.getLength(), StandardCharsets.UTF_8);
-                    
-                    // Pintar mensaje del amigo en burbuja gris pastel
                     agregarTextoAlChat("Amigo: " + mensajeRecibido + "\n", "estiloAmigo");
                 }
-            } catch (Exception e) { System.err.println("Oído UDP cerrado: " + e.getMessage()); }
+            } catch (Exception e) {
+                if (!socketEscucha.isClosed()) System.err.println("Oído UDP cerrado: " + e.getMessage());
+            } finally {
+                socketEscucha.close();
+            }
         }).start();
+    }
+
+    // Muestra en el chat un archivo recibido por TCP desde el amigo
+    private void recibirArchivoPorTCP(File archivo) {
+        agregarTextoAlChat("Amigo (TCP): Envió → " + archivo.getName() + "\n", "estiloAmigo");
+        String nombreLower = archivo.getName().toLowerCase();
+        if (nombreLower.endsWith(".png") || nombreLower.endsWith(".jpg") || nombreLower.endsWith(".jpeg")) {
+            mostrarImagenEnChat(archivo.getAbsolutePath());
+        }
+        agregarEnlaceArchivoChat(archivo);
     }
 
     // Agrega texto estilizado (burbuja pastel) de forma segura
