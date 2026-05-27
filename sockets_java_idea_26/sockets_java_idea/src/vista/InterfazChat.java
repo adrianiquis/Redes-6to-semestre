@@ -13,10 +13,14 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
 import javax.swing.text.StyledDocument;
 import java.awt.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.nio.charset.StandardCharsets;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 
 public class InterfazChat extends JFrame {
 
@@ -205,8 +209,9 @@ public class InterfazChat extends JFrame {
             // El oído P2P (Receptor UDP integrado)
             iniciarEscuchaRespuestasUDP();
 
-            // Actualizar UI pastel
-            labelEstadoRed.setText("● Conectado a " + ipTarget);
+            // Actualizar UI pastel — mostrar también la IP propia para compartirla con el amigo
+            String miIP = obtenerIPLocal();
+            labelEstadoRed.setText("● Conectado a " + ipTarget + "  |  Tu IP: " + miIP + "  (puerto UDP/TCP: " + PUERTO_MI_ESCUCHA_UDP + "/" + PUERTO_TCP_AMIGO + ")");
             labelEstadoRed.setForeground(new Color(0, 180, 0)); // Un verde más brillante pastel
             campoIPDestino.setEnabled(false);
             btnConectar.setEnabled(false);
@@ -264,8 +269,13 @@ public class InterfazChat extends JFrame {
                 while (true) {
                     DatagramPacket paquete = new DatagramPacket(buffer, buffer.length);
                     socketEscucha.receive(paquete);
-                    String mensajeRecibido = new String(paquete.getData(), 0, paquete.getLength(), StandardCharsets.UTF_8);
-                    agregarTextoAlChat("Amigo: " + mensajeRecibido + "\n", "estiloAmigo");
+                    // El emisor empaqueta: writeUTF(texto) + writeLong(checksum)
+                    // Hay que desempaquetar igual, no leer bytes crudos
+                    try (DataInputStream dis = new DataInputStream(
+                            new ByteArrayInputStream(paquete.getData(), 0, paquete.getLength()))) {
+                        String mensajeRecibido = dis.readUTF();
+                        agregarTextoAlChat("Amigo: " + mensajeRecibido + "\n", "estiloAmigo");
+                    }
                 }
             } catch (Exception e) {
                 if (!socketEscucha.isClosed()) System.err.println("Oído UDP cerrado: " + e.getMessage());
@@ -273,6 +283,24 @@ public class InterfazChat extends JFrame {
                 socketEscucha.close();
             }
         }).start();
+    }
+
+    // Devuelve la primera IP local no-loopback (la que hay que darle al amigo)
+    private String obtenerIPLocal() {
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface ni = interfaces.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                Enumeration<InetAddress> addresses = ni.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    if (addr.getHostAddress().contains(":")) continue; // saltar IPv6
+                    return addr.getHostAddress();
+                }
+            }
+        } catch (Exception ignored) {}
+        return "desconocida";
     }
 
     // Muestra en el chat un archivo recibido por TCP desde el amigo
