@@ -61,11 +61,12 @@ public class InterfazChat extends JFrame {
         setLayout(new BorderLayout(10, 10));
         setLocationRelativeTo(null);
 
-        // ── Panel superior: IP + botón conectar ──────────────────────────────
-        JPanel panelNorte = new JPanel(new BorderLayout(10, 0));
+        // ── Panel superior: fila 1 = IP + botón | fila 2 = estado ───────────
+        JPanel panelNorte = new JPanel(new BorderLayout(5, 5));
         panelNorte.setBackground(COLOR_FONDO_VENTANA);
-        panelNorte.setBorder(new EmptyBorder(15, 15, 0, 15));
+        panelNorte.setBorder(new EmptyBorder(12, 15, 8, 15));
 
+        // Fila 1: campo IP + botón
         JPanel panelIP = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         panelIP.setBackground(COLOR_FONDO_VENTANA);
 
@@ -79,15 +80,18 @@ public class InterfazChat extends JFrame {
 
         btnConectar = crearBotonEstilizado("Establecer Red", COLOR_PRIMARIO_PASTEL);
 
-        labelEstadoRed = new JLabel("● Desconectado");
-        labelEstadoRed.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        labelEstadoRed.setForeground(Color.RED);
-
         panelIP.add(lblIP);
         panelIP.add(campoIPDestino);
         panelIP.add(btnConectar);
-        panelIP.add(labelEstadoRed);
-        panelNorte.add(panelIP, BorderLayout.CENTER);
+
+        // Fila 2: estado de conexión (ancho completo)
+        labelEstadoRed = new JLabel("● Desconectado  —  ingresa la IP de tu amigo y presiona Establecer Red");
+        labelEstadoRed.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        labelEstadoRed.setForeground(Color.RED);
+        labelEstadoRed.setBorder(new EmptyBorder(2, 4, 2, 4));
+
+        panelNorte.add(panelIP, BorderLayout.NORTH);
+        panelNorte.add(labelEstadoRed, BorderLayout.SOUTH);
         add(panelNorte, BorderLayout.NORTH);
 
         // ── Panel central: chat ───────────────────────────────────────────────
@@ -210,14 +214,28 @@ public class InterfazChat extends JFrame {
             iniciarEscuchaRespuestasUDP();
 
             String miIP = obtenerIPLocal();
-            labelEstadoRed.setText("● Conectado a " + ipTarget
+            labelEstadoRed.setText("● Buscando amigo en " + ipTarget
                 + "  |  Tu IP: " + miIP
                 + "  (UDP " + PUERTO_MI_ESCUCHA_UDP + " / TCP " + PUERTO_TCP_AMIGO + ")");
-            labelEstadoRed.setForeground(new Color(0, 180, 0));
+            labelEstadoRed.setForeground(Color.ORANGE);
             campoIPDestino.setEnabled(false);
             btnConectar.setEnabled(false);
             btnEnviarTexto.setEnabled(true);
             btnEnviarArchivo.setEnabled(true);
+
+            // Enviar ping al amigo para verificar conectividad
+            clienteUdp.encolarMensajeParaEnvio("__PING__");
+
+            // Si no responde en 4 segundos, actualizar estado
+            Timer timerPing = new Timer(4000, ev -> {
+                if (labelEstadoRed.getForeground().equals(Color.ORANGE)) {
+                    labelEstadoRed.setText("● Amigo no responde aun  |  Tu IP: " + miIP
+                        + "  (UDP " + PUERTO_MI_ESCUCHA_UDP + " / TCP " + PUERTO_TCP_AMIGO + ")");
+                    labelEstadoRed.setForeground(new Color(200, 130, 0));
+                }
+            });
+            timerPing.setRepeats(false);
+            timerPing.start();
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
@@ -277,8 +295,26 @@ public class InterfazChat extends JFrame {
                         crc.update(texto.getBytes(StandardCharsets.UTF_8));
                         boolean crcOk = crc.getValue() == checksumRecibido;
 
-                        String prefijo = crcOk ? "Amigo" : "Amigo [CRC ERROR]";
-                        agregarTextoAlChat(prefijo + ": " + texto + "\n", "estiloAmigo");
+                        if ("__PING__".equals(texto)) {
+                            // El amigo está online: responder y actualizar estado
+                            if (clienteUdp != null)
+                                clienteUdp.encolarMensajeParaEnvio("__PONG__");
+                            SwingUtilities.invokeLater(() -> {
+                                labelEstadoRed.setText("● Amigo conectado!  |  Tu IP: " + obtenerIPLocal()
+                                    + "  (UDP " + PUERTO_MI_ESCUCHA_UDP + " / TCP " + PUERTO_TCP_AMIGO + ")");
+                                labelEstadoRed.setForeground(new Color(0, 180, 0));
+                            });
+                        } else if ("__PONG__".equals(texto)) {
+                            // Confirmación de que el amigo nos recibió
+                            SwingUtilities.invokeLater(() -> {
+                                labelEstadoRed.setText("● Amigo en linea!  |  Tu IP: " + obtenerIPLocal()
+                                    + "  (UDP " + PUERTO_MI_ESCUCHA_UDP + " / TCP " + PUERTO_TCP_AMIGO + ")");
+                                labelEstadoRed.setForeground(new Color(0, 180, 0));
+                            });
+                        } else {
+                            String prefijo = crcOk ? "Amigo" : "Amigo [CRC ERROR]";
+                            agregarTextoAlChat(prefijo + ": " + texto + "\n", "estiloAmigo");
+                        }
                     }
                 }
             } catch (Exception e) {
