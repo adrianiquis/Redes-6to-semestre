@@ -31,8 +31,8 @@ public class InterfazChat extends JFrame {
 
     // Puertos P2P (teléfono de vasos)
     private final int PUERTO_TCP_AMIGO = 60000; 
-    private final int PUERTO_UDP_AMIGO = 50000; 
-    private final int PUERTO_MI_ESCUCHA_UDP = 50000; 
+    private final int PUERTO_UDP_AMIGO = 50001; 
+    private final int PUERTO_MI_ESCUCHA_UDP = 50001; 
 
     //Paleta de colores
     private final Color COLOR_FONDO_VENTANA = new Color(240, 248, 255); // Alice Blue (Blanco azulado suave)
