@@ -1,0 +1,22 @@
+
+
+services:
+  servidor-tcp:
+    build: .
+    command: java servidor.tcp.PruebaServidorTCP
+    ports:
+      - "5000:5000" 
+    networks:
+      - red-proyecto
+
+  servidor-udp:
+    build: .
+    command: java servidor.udp.PruebaServidorUDP
+    ports:
+      - "6000:6000/udp"
+    networks:
+      - red-proyecto
+
+networks:
+  red-proyecto:
+    driver: bridge
