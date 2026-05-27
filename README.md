@@ -37,9 +37,6 @@ Para mantener las mejores prácticas de desarrollo, el proyecto utiliza una arqu
 ## ⚙️ Requisitos Previos
 
 * **Java JDK** instalado en tu máquina (se recomienda JDK 17 o superior) para correr el cliente.
-* **IntelliJ IDEA** (o cualquier IDE de Java compatible).
-* **Docker** y **Docker Compose** instalados y en ejecución en tu sistema.
-
 ---
 
 ## 🚀 Instrucciones de Ejecución
