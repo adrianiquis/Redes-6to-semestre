@@ -20,7 +20,9 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.zip.CRC32;
 
 public class InterfazChat extends JFrame {
 
@@ -30,53 +32,55 @@ public class InterfazChat extends JFrame {
     private JButton btnEnviarTexto, btnEnviarArchivo, btnConectar;
     private JLabel labelMetricas, labelEstadoRed;
 
-    // Motores de Red (El mismo motor)
+    // Motores de Red
     private ClienteTCP clienteTcp;
     private ClienteEnviaUDP2 clienteUdp;
     private ServidorTCP servidorTcp;
 
-    // Puertos P2P (teléfono de vasos)
-    private final int PUERTO_TCP_AMIGO = 6001; 
-    private final int PUERTO_UDP_AMIGO = 5001; 
-    private final int PUERTO_MI_ESCUCHA_UDP = 5001; 
+    // Puertos P2P
+    private final int PUERTO_TCP_AMIGO      = 6001;
+    private final int PUERTO_UDP_AMIGO      = 5001;
+    private final int PUERTO_MI_ESCUCHA_UDP = 5001;
 
-    //Paleta de colores
-    private final Color COLOR_FONDO_VENTANA = new Color(240, 248, 255); // Alice Blue (Blanco azulado suave)
-    private final Color COLOR_PANEL_CHAT = Color.WHITE; // El chat se mantiene blanco puro
-    private final Color COLOR_PRIMARIO_PASTEL = new Color(174, 217, 224); // Azul cielo pastel para botones
-    private final Color COLOR_BURBUJA_USUARIO = new Color(209, 255, 209); // Verde menta pastel muy suave
-    private final Color COLOR_BURBUJA_AMIGO = new Color(255, 209, 220); // Gris perla pastel suave (o rosa empolvado)
-    private final Color COLOR_TEXTO_OSCURO = new Color(60, 60, 60); // Gris oscuro suave para textos legibles
-    private final Font FUENTE_MODERNA = new Font("Segoe UI", Font.PLAIN, 14);
+    // Paleta de colores
+    private final Color COLOR_FONDO_VENTANA  = new Color(240, 248, 255);
+    private final Color COLOR_PANEL_CHAT     = Color.WHITE;
+    private final Color COLOR_PRIMARIO_PASTEL = new Color(174, 217, 224);
+    private final Color COLOR_BURBUJA_USUARIO = new Color(209, 255, 209);
+    private final Color COLOR_BURBUJA_AMIGO   = new Color(255, 209, 220);
+    private final Color COLOR_TEXTO_OSCURO    = new Color(60, 60, 60);
+    private final Font  FUENTE_MODERNA        = new Font("Segoe UI", Font.PLAIN, 14);
 
     public InterfazChat() {
-        //Look y Feel Moderno (Nativo)
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
-        
-        setTitle("Chat Redes P2P - Pastel Edition");
-        setSize(650, 600);
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+
+        setTitle("Chat Redes P2P");
+        setSize(700, 620);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        getContentPane().setBackground(COLOR_FONDO_VENTANA); // Fondo suave a la ventana
+        getContentPane().setBackground(COLOR_FONDO_VENTANA);
         setLayout(new BorderLayout(10, 10));
         setLocationRelativeTo(null);
 
-        // Panel superior: Configuración IP Dinámica
+        // ── Panel superior: IP + botón conectar ──────────────────────────────
         JPanel panelNorte = new JPanel(new BorderLayout(10, 0));
         panelNorte.setBackground(COLOR_FONDO_VENTANA);
-        panelNorte.setBorder(new EmptyBorder(15, 15, 0, 15)); 
+        panelNorte.setBorder(new EmptyBorder(15, 15, 0, 15));
 
         JPanel panelIP = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         panelIP.setBackground(COLOR_FONDO_VENTANA);
+
         JLabel lblIP = new JLabel("IP del Destinatario:");
         lblIP.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblIP.setForeground(COLOR_TEXTO_OSCURO);
-        
+
         campoIPDestino = new JTextField("127.0.0.1", 15);
         campoIPDestino.setFont(FUENTE_MODERNA);
         campoIPDestino.setBorder(new LineBorder(Color.LIGHT_GRAY, 1));
-        
-        btnConectar = crearBotónEstilizado("Establecer Red", COLOR_PRIMARIO_PASTEL);
+
+        btnConectar = crearBotonEstilizado("Establecer Red", COLOR_PRIMARIO_PASTEL);
+
         labelEstadoRed = new JLabel("● Desconectado");
+        labelEstadoRed.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         labelEstadoRed.setForeground(Color.RED);
 
         panelIP.add(lblIP);
@@ -86,46 +90,43 @@ public class InterfazChat extends JFrame {
         panelNorte.add(panelIP, BorderLayout.CENTER);
         add(panelNorte, BorderLayout.NORTH);
 
-        // Panel central: Burbujas de Chat (JTextPane estilizado)
+        // ── Panel central: chat ───────────────────────────────────────────────
         panelChat = new JTextPane();
         panelChat.setEditable(false);
         panelChat.setBackground(COLOR_PANEL_CHAT);
-        // Definir estilos de burbujas pasteles
         configurarEstilosChat();
-        
+
         JScrollPane scrollChat = new JScrollPane(panelChat);
-        scrollChat.setBorder(new EmptyBorder(10, 15, 10, 15)); 
+        scrollChat.setBorder(new EmptyBorder(10, 15, 10, 15));
         scrollChat.getViewport().setBackground(COLOR_PANEL_CHAT);
         add(scrollChat, BorderLayout.CENTER);
 
-        // Panel inferior: Entrada de Texto y Botones
+        // ── Panel inferior: entrada + botones ────────────────────────────────
         JPanel panelSur = new JPanel(new BorderLayout(10, 10));
         panelSur.setBackground(COLOR_FONDO_VENTANA);
         panelSur.setBorder(new EmptyBorder(0, 15, 15, 15));
 
-        // Fila 1: Texto
         JPanel panelEntrada = new JPanel(new BorderLayout(5, 0));
         panelEntrada.setBackground(COLOR_FONDO_VENTANA);
         campoMensaje = new JTextField();
         campoMensaje.setFont(FUENTE_MODERNA);
         campoMensaje.setBorder(new LineBorder(Color.LIGHT_GRAY, 1));
-        
-        btnEnviarTexto = crearBotónEstilizado("Enviar (UDP)", COLOR_PRIMARIO_PASTEL);
-        btnEnviarTexto.setEnabled(false); // Deshabilitado hasta conectar
+
+        btnEnviarTexto = crearBotonEstilizado("Enviar (UDP)", COLOR_PRIMARIO_PASTEL);
+        btnEnviarTexto.setEnabled(false);
 
         panelEntrada.add(campoMensaje, BorderLayout.CENTER);
         panelEntrada.add(btnEnviarTexto, BorderLayout.EAST);
 
-        // Archivos y Métricas
         JPanel panelAccionesExtra = new JPanel(new BorderLayout(10, 0));
         panelAccionesExtra.setBackground(COLOR_FONDO_VENTANA);
-        // Usamos un color pastel diferente para el clip
-        btnEnviarArchivo = crearBotónEstilizado("📎 Adjuntar Archivo/Foto (TCP)", new Color(255, 228, 225)); // Misty Rose pastel
-        btnEnviarArchivo.setEnabled(false); // Deshabilitado hasta conectar
-        
-        labelMetricas = new JLabel(" Métricas TCP: Esperando transferencia...");
+
+        btnEnviarArchivo = crearBotonEstilizado("Adjuntar Archivo/Foto (TCP)", new Color(255, 228, 225));
+        btnEnviarArchivo.setEnabled(false);
+
+        labelMetricas = new JLabel(" Metricas TCP: Esperando transferencia...");
         labelMetricas.setFont(new Font("Consolas", Font.BOLD, 12));
-        labelMetricas.setForeground(new Color(100, 100, 100)); // Gris medio pastel
+        labelMetricas.setForeground(new Color(100, 100, 100));
 
         panelAccionesExtra.add(btnEnviarArchivo, BorderLayout.WEST);
         panelAccionesExtra.add(labelMetricas, BorderLayout.CENTER);
@@ -134,25 +135,23 @@ public class InterfazChat extends JFrame {
         panelSur.add(panelAccionesExtra, BorderLayout.SOUTH);
         add(panelSur, BorderLayout.SOUTH);
 
-        // GESTIÓN DE EVENTOS
+        // ── Eventos ───────────────────────────────────────────────────────────
         btnConectar.addActionListener(e -> inicializarRedDinamica());
         btnEnviarTexto.addActionListener(e -> enviarTexto());
         campoMensaje.addActionListener(e -> enviarTexto());
         btnEnviarArchivo.addActionListener(e -> seleccionarYEnviarArchivo());
     }
 
-    
-    // Cambia el diseño de los botones para que se vean pasteles, modernos y redondeados
-    private JButton crearBotónEstilizado(String texto, Color colorFondo) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // UI helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private JButton crearBotonEstilizado(String texto, Color colorFondo) {
         JButton boton = new JButton(texto);
         boton.setFont(new Font("Segoe UI", Font.BOLD, 13));
         boton.setBackground(colorFondo);
-        
-        // Letras en gris oscuro suave para legibilidad sobre pastel
-        boton.setForeground(COLOR_TEXTO_OSCURO); 
-        
+        boton.setForeground(COLOR_TEXTO_OSCURO);
         boton.setFocusPainted(false);
-        // Bordes suaves y redondeados
         boton.setBorder(BorderFactory.createCompoundBorder(
             new LineBorder(Color.LIGHT_GRAY, 1),
             new EmptyBorder(8, 20, 8, 20)
@@ -160,29 +159,30 @@ public class InterfazChat extends JFrame {
         return boton;
     }
 
-    // Configura los estilos (burbujas) pasteles para el JTextPane
     private void configurarEstilosChat() {
         StyledDocument doc = panelChat.getStyledDocument();
         Style def = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
 
-        // Estilo para quien manda (Verde menta pastel, derecha, bold)
         Style estiloTu = doc.addStyle("estiloTu", def);
         StyleConstants.setForeground(estiloTu, COLOR_TEXTO_OSCURO);
         StyleConstants.setBackground(estiloTu, COLOR_BURBUJA_USUARIO);
         StyleConstants.setBold(estiloTu, true);
-        StyleConstants.setFontFamily(estiloTu, "Segoe UI Semibold");
 
-        // Estilo para quien recibe (Gris perla pastel, izquierda)
         Style estiloAmigo = doc.addStyle("estiloAmigo", def);
         StyleConstants.setForeground(estiloAmigo, Color.BLACK);
         StyleConstants.setBackground(estiloAmigo, COLOR_BURBUJA_AMIGO);
     }
 
-    // Inicializa los motores apuntando a la IP que tecleaste
+    // ─────────────────────────────────────────────────────────────────────────
+    // Red
+    // ─────────────────────────────────────────────────────────────────────────
+
     private void inicializarRedDinamica() {
         String ipTarget = campoIPDestino.getText().trim();
         if (ipTarget.isEmpty() || ipTarget.split("\\.").length != 4) {
-            JOptionPane.showMessageDialog(this, "Por favor ingresa una IP IPv4 válida (ej. 10.10.28.145).", "IP Incorrecta", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                "Por favor ingresa una IP IPv4 valida (ej. 10.10.28.145).",
+                "IP Incorrecta", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -192,34 +192,36 @@ public class InterfazChat extends JFrame {
 
             if (clienteUdp != null) clienteUdp.detener();
 
-            // Servidor TCP (para recibir archivos del amigo) — se inicia solo una vez
+            // Servidor TCP para recibir archivos — se inicia solo una vez
             if (servidorTcp == null) {
                 servidorTcp = new ServidorTCP(PUERTO_TCP_AMIGO);
                 servidorTcp.inicia(this::recibirArchivoPorTCP);
             }
 
-            // Motor TCP (para enviar archivos al amigo)
+            // Cliente TCP para enviar archivos
             clienteTcp = new ClienteTCP(ipTarget, PUERTO_TCP_AMIGO);
             clienteTcp.inicia();
 
-            // Motor UDP (para enviar mensajes)
+            // Cliente UDP para enviar mensajes
             clienteUdp = new ClienteEnviaUDP2(new DatagramSocket(), ipTarget, PUERTO_UDP_AMIGO);
             clienteUdp.start();
 
-            // El oído P2P (Receptor UDP integrado)
+            // Receptor UDP para recibir mensajes
             iniciarEscuchaRespuestasUDP();
 
-            // Actualizar UI pastel — mostrar también la IP propia para compartirla con el amigo
             String miIP = obtenerIPLocal();
-            labelEstadoRed.setText("● Conectado a " + ipTarget + "  |  Tu IP: " + miIP + "  (puerto UDP/TCP: " + PUERTO_MI_ESCUCHA_UDP + "/" + PUERTO_TCP_AMIGO + ")");
-            labelEstadoRed.setForeground(new Color(0, 180, 0)); // Un verde más brillante pastel
+            labelEstadoRed.setText("● Conectado a " + ipTarget
+                + "  |  Tu IP: " + miIP
+                + "  (UDP " + PUERTO_MI_ESCUCHA_UDP + " / TCP " + PUERTO_TCP_AMIGO + ")");
+            labelEstadoRed.setForeground(new Color(0, 180, 0));
             campoIPDestino.setEnabled(false);
             btnConectar.setEnabled(false);
             btnEnviarTexto.setEnabled(true);
             btnEnviarArchivo.setEnabled(true);
 
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error de red: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                "Error de red: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             labelEstadoRed.setText("● Error");
             labelEstadoRed.setForeground(Color.RED);
         }
@@ -228,64 +230,80 @@ public class InterfazChat extends JFrame {
     private void enviarTexto() {
         String texto = campoMensaje.getText().trim();
         if (!texto.isEmpty() && clienteUdp != null) {
-            agregarTextoAlChat("Tú: " + texto + "\n", "estiloTu");
+            agregarTextoAlChat("Tu: " + texto + "\n", "estiloTu");
             clienteUdp.encolarMensajeParaEnvio(texto);
-            campoMensaje.setText(""); 
+            campoMensaje.setText("");
         }
     }
 
-    // ¡AQUÍ ESTÁ LA CORRECCIÓN! Conectamos el botón para abrir el archivo
     private void seleccionarYEnviarArchivo() {
         JFileChooser fileChooser = new JFileChooser();
-        int seleccion = fileChooser.showOpenDialog(InterfazChat.this);
-        
+        int seleccion = fileChooser.showOpenDialog(this);
+
         if (seleccion == JFileChooser.APPROVE_OPTION && clienteTcp != null) {
-            File archivoSeleccionado = fileChooser.getSelectedFile();
-            
-            // Avisamos en el chat
-            agregarTextoAlChat("Tú (TCP): Enviaste un archivo\n", "estiloTu");
-            
-            // Mostramos miniatura si es imagen
-            String nombreLower = archivoSeleccionado.getName().toLowerCase();
+            File archivo = fileChooser.getSelectedFile();
+
+            agregarTextoAlChat("Tu (TCP): " + archivo.getName()
+                + " (" + archivo.length() + " bytes)\n", "estiloTu");
+
+            String nombreLower = archivo.getName().toLowerCase();
             if (nombreLower.endsWith(".png") || nombreLower.endsWith(".jpg") || nombreLower.endsWith(".jpeg")) {
-                mostrarImagenEnChat(archivoSeleccionado.getAbsolutePath());
+                mostrarImagenEnChat(archivo.getAbsolutePath());
             }
-            
-            // Insertamos el botón interactivo en el chat
-            agregarEnlaceArchivoChat(archivoSeleccionado);
-            
-            // Lo enviamos por la red
-            clienteTcp.mandarArchivo(archivoSeleccionado, labelMetricas); 
+
+            agregarEnlaceArchivoChat(archivo);
+            clienteTcp.mandarArchivo(archivo, labelMetricas);
         }
     }
 
-    // Hilo Receptor P2P integrado (El oído de la ventana)
+    // Receptor UDP: desempaqueta writeUTF + writeLong y verifica CRC32 (Req. 6)
     private void iniciarEscuchaRespuestasUDP() throws Exception {
-        // Creamos el socket ANTES del hilo para que el error sea visible en la UI
         DatagramSocket socketEscucha = new DatagramSocket(PUERTO_MI_ESCUCHA_UDP);
-        new Thread(() -> {
-            byte[] buffer = new byte[1024];
+        Thread hilo = new Thread(() -> {
+            byte[] buffer = new byte[65507]; // máximo payload UDP sobre IPv4
             try {
                 while (true) {
                     DatagramPacket paquete = new DatagramPacket(buffer, buffer.length);
                     socketEscucha.receive(paquete);
-                    // El emisor empaqueta: writeUTF(texto) + writeLong(checksum)
-                    // Hay que desempaquetar igual, no leer bytes crudos
+
                     try (DataInputStream dis = new DataInputStream(
                             new ByteArrayInputStream(paquete.getData(), 0, paquete.getLength()))) {
-                        String mensajeRecibido = dis.readUTF();
-                        agregarTextoAlChat("Amigo: " + mensajeRecibido + "\n", "estiloAmigo");
+
+                        String texto           = dis.readUTF();
+                        long  checksumRecibido = dis.readLong();
+
+                        // Verificar CRC32
+                        CRC32 crc = new CRC32();
+                        crc.update(texto.getBytes(StandardCharsets.UTF_8));
+                        boolean crcOk = crc.getValue() == checksumRecibido;
+
+                        String prefijo = crcOk ? "Amigo" : "Amigo [CRC ERROR]";
+                        agregarTextoAlChat(prefijo + ": " + texto + "\n", "estiloAmigo");
                     }
                 }
             } catch (Exception e) {
-                if (!socketEscucha.isClosed()) System.err.println("Oído UDP cerrado: " + e.getMessage());
+                if (!socketEscucha.isClosed())
+                    System.err.println("Receptor UDP cerrado: " + e.getMessage());
             } finally {
                 socketEscucha.close();
             }
-        }).start();
+        });
+        hilo.setDaemon(true);
+        hilo.start();
     }
 
-    // Devuelve la primera IP local no-loopback (la que hay que darle al amigo)
+    // Callback invocado desde el servidor TCP cuando llega un archivo
+    private void recibirArchivoPorTCP(File archivo) {
+        agregarTextoAlChat("Amigo (TCP): " + archivo.getName()
+            + " (" + archivo.length() + " bytes)\n", "estiloAmigo");
+        String nombreLower = archivo.getName().toLowerCase();
+        if (nombreLower.endsWith(".png") || nombreLower.endsWith(".jpg") || nombreLower.endsWith(".jpeg")) {
+            mostrarImagenEnChat(archivo.getAbsolutePath());
+        }
+        agregarEnlaceArchivoChat(archivo);
+    }
+
+    // Devuelve la primera IP local no-loopback para compartirla con el amigo
     private String obtenerIPLocal() {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
@@ -295,99 +313,76 @@ public class InterfazChat extends JFrame {
                 Enumeration<InetAddress> addresses = ni.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress addr = addresses.nextElement();
-                    if (addr.getHostAddress().contains(":")) continue; // saltar IPv6
-                    return addr.getHostAddress();
+                    if (!addr.getHostAddress().contains(":")) // saltar IPv6
+                        return addr.getHostAddress();
                 }
             }
         } catch (Exception ignored) {}
         return "desconocida";
     }
 
-    // Muestra en el chat un archivo recibido por TCP desde el amigo
-    private void recibirArchivoPorTCP(File archivo) {
-        agregarTextoAlChat("Amigo (TCP): Envió → " + archivo.getName() + "\n", "estiloAmigo");
-        String nombreLower = archivo.getName().toLowerCase();
-        if (nombreLower.endsWith(".png") || nombreLower.endsWith(".jpg") || nombreLower.endsWith(".jpeg")) {
-            mostrarImagenEnChat(archivo.getAbsolutePath());
-        }
-        agregarEnlaceArchivoChat(archivo);
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Renderizado del chat
+    // ─────────────────────────────────────────────────────────────────────────
 
-    // Agrega texto estilizado (burbuja pastel) de forma segura
     private void agregarTextoAlChat(String texto, String estiloNombre) {
         SwingUtilities.invokeLater(() -> {
             try {
                 StyledDocument doc = panelChat.getStyledDocument();
                 doc.insertString(doc.getLength(), texto, doc.getStyle(estiloNombre));
-                // Separador suave entre mensajes
-                doc.insertString(doc.getLength(), "\n", null); 
                 panelChat.setCaretPosition(doc.getLength());
-            } catch (BadLocationException e) { e.printStackTrace(); }
+            } catch (BadLocationException e) {
+                e.printStackTrace();
+            }
         });
     }
 
-    // Incrusta miniatura de imagen pastel en el flujo del chat
     private void mostrarImagenEnChat(String rutaImagen) {
         SwingUtilities.invokeLater(() -> {
             try {
                 ImageIcon iconoOriginal = new ImageIcon(rutaImagen);
-                Image img = iconoOriginal.getImage();
-                // Escalar a 200px pastel
-                Image imagenEscalada = img.getScaledInstance(200, -1, Image.SCALE_SMOOTH);
-                
+                Image imagenEscalada = iconoOriginal.getImage().getScaledInstance(200, -1, Image.SCALE_SMOOTH);
                 panelChat.setCaretPosition(panelChat.getDocument().getLength());
                 panelChat.insertIcon(new ImageIcon(imagenEscalada));
-                
                 panelChat.getStyledDocument().insertString(panelChat.getDocument().getLength(), "\n", null);
                 panelChat.setCaretPosition(panelChat.getDocument().getLength());
-            } catch (Exception e) { System.err.println("Error renderizando imagen: " + e.getMessage()); }
+            } catch (Exception e) {
+                System.err.println("Error mostrando imagen: " + e.getMessage());
+            }
         });
     }
 
-    // Incrusta un botón clickable que abre el archivo en tu sistema
     private void agregarEnlaceArchivoChat(File archivo) {
         SwingUtilities.invokeLater(() -> {
             try {
-                // Crear un botón que parezca un link de internet
-                JButton btnLink = new JButton("📁 Abrir: " + archivo.getName());
+                JButton btnLink = new JButton("Abrir: " + archivo.getName());
                 btnLink.setFont(new Font("Segoe UI", Font.BOLD, 13));
-                btnLink.setForeground(new Color(0, 102, 204)); // Azul tipo link
-                btnLink.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Manita de clic
-                
-                // Quitarle los bordes para que no parezca botón cuadrado
+                btnLink.setForeground(new Color(0, 102, 204));
+                btnLink.setCursor(new Cursor(Cursor.HAND_CURSOR));
                 btnLink.setContentAreaFilled(false);
                 btnLink.setBorderPainted(false);
                 btnLink.setFocusPainted(false);
                 btnLink.setMargin(new Insets(0, 0, 0, 0));
-
-                // Acción al darle clic: Abrir el archivo
                 btnLink.addActionListener(e -> {
                     try {
-                        if (Desktop.isDesktopSupported()) {
+                        if (Desktop.isDesktopSupported())
                             Desktop.getDesktop().open(archivo);
-                        }
                     } catch (Exception ex) {
                         JOptionPane.showMessageDialog(this, "No se pudo abrir el archivo.", "Error", JOptionPane.ERROR_MESSAGE);
                     }
                 });
 
-                // Incrustar el botón en el chat
                 panelChat.setCaretPosition(panelChat.getDocument().getLength());
                 panelChat.insertComponent(btnLink);
-                
-                // Darle espacio después del botón
-                panelChat.getStyledDocument().insertString(panelChat.getDocument().getLength(), "\n\n", null);
+                panelChat.getStyledDocument().insertString(panelChat.getDocument().getLength(), "\n", null);
                 panelChat.setCaretPosition(panelChat.getDocument().getLength());
-
             } catch (Exception e) {
-                System.err.println("Error creando link de archivo: " + e.getMessage());
+                System.err.println("Error creando enlace: " + e.getMessage());
             }
         });
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            new InterfazChat().setVisible(true);
-        });
+        SwingUtilities.invokeLater(() -> new InterfazChat().setVisible(true));
     }
 }
